@@ -1,0 +1,8 @@
+docs/
+out/
+.github/
+.idea/
+.vscode.dist/
+.gitignore
+.dockerignore
+**/*.md

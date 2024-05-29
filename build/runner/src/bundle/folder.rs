@@ -45,7 +45,7 @@ pub fn build_dist_folder(args: BuildDistFolderArgs) {
 }
 
 fn copy_qt_from_venv(kind: DistKind, folder_root: &Utf8Path) {
-    let python39 = if cfg!(windows) { "" } else { "python3.9/" };
+    let python39 = if cfg!(windows) { "" } else { "python3.11/" };
     let qt_root = match kind {
         DistKind::Standard => {
             folder_root.join(format!("../pyenv/lib/{python39}site-packages/PyQt6"))
@@ -146,7 +146,7 @@ fn copy_binary_and_pylibs(folder_root: &Utf8Path) {
     let google_py = if cfg!(windows) {
         folder_root.join("../pyenv/lib/site-packages/google")
     } else {
-        folder_root.join("../pyenv/lib/python3.9/site-packages/google")
+        folder_root.join("../pyenv/lib/python3.11/site-packages/google")
     };
     run_command(Command::new("rsync").args([
         "-a",

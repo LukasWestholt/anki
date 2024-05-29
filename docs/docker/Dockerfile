@@ -4,37 +4,52 @@
 #   3. Create a final image that only includes anki's virtual environment and required
 #      system packages.
 
-ARG PYTHON_VERSION="3.9"
+ARG PYTHON_VERSION="3.11"
 ARG DEBIAN_FRONTEND="noninteractive"
 
 # Build anki.
 FROM python:$PYTHON_VERSION AS build
-RUN curl -fsSL https://github.com/bazelbuild/bazelisk/releases/download/v1.7.4/bazelisk-linux-amd64 \
-    > /usr/local/bin/bazel \
-    && chmod +x /usr/local/bin/bazel \
-    # Bazel expects /usr/bin/python
-    && ln -s /usr/local/bin/python /usr/bin/python
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ninja-build rsync && \
+    apt-get clean
+
 WORKDIR /opt/anki
 COPY . .
+
+ENV CARGO_HOME=/state/rust/cargo
+ENV RUSTUP_HOME=/state/rust/rustup
+ENV PATH=/state/rust/cargo/bin:$PATH
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default-toolchain none && \
+    rustup show
 # Build python wheels.
 RUN ./tools/build
 
 # Install pre-compiled Anki.
-FROM python:${PYTHON_VERSION}-slim as installer
+FROM debian as installer
 WORKDIR /opt/anki/
-COPY --from=build /opt/anki/wheels/ wheels/
+COPY --from=build /opt/anki/out/wheels/ wheels/
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+    python3-pyqt6.qtquick python3-pyqt6.qtwebengine python3-pyqt6.qtmultimedia \
+    python3.11-venv \
+    && rm -rf /var/lib/apt/lists/*
+
 # Use virtual environment.
-RUN python -m venv venv \
+# /usr/bin/python3 3.11.2
+RUN /usr/bin/python3 -m venv --system-site-packages venv \
     && ./venv/bin/python -m pip install --no-cache-dir setuptools wheel \
     && ./venv/bin/python -m pip install --no-cache-dir /opt/anki/wheels/*.whl
 
 # We use another build stage here so we don't include the wheels in the final image.
-FROM python:${PYTHON_VERSION}-slim as final
+FROM debian as final
 COPY --from=installer /opt/anki/venv /opt/anki/venv
 ENV PATH=/opt/anki/venv/bin:$PATH
 # Install run-time dependencies.
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
+    python3-pyqt6.qtquick python3-pyqt6.qtwebengine python3-pyqt6.qtmultimedia \
     libasound2 \
     libdbus-1-3 \
     libfontconfig1 \
@@ -59,9 +74,16 @@ RUN apt-get update \
     libxrender1 \
     libxtst6 \
     && rm -rf /var/lib/apt/lists/*
-# Add non-root user.
-RUN useradd --create-home anki
-USER anki
+
+
+ARG USERNAME=anki
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+
+# Create non-root user
+RUN groupadd --gid $USER_GID $USERNAME \
+    && useradd --create-home --uid $USER_UID --gid $USER_GID -m $USERNAME
+USER $USERNAME
 WORKDIR /work
 ENTRYPOINT ["/opt/anki/venv/bin/anki"]
-LABEL maintainer="Jakub Kaczmarzyk <jakub.kaczmarzyk@gmail.com>"
+LABEL maintainer="Lukas Westholt <support@lukaswestholt.de>"
