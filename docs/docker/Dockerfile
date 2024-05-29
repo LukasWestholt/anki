@@ -26,19 +26,13 @@ RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default-tool
 RUN ./tools/build
 
 # Install pre-compiled Anki.
-FROM debian as installer
+FROM python:${PYTHON_VERSION}-slim as installer
 WORKDIR /opt/anki/
 COPY --from=build /opt/anki/out/wheels/ wheels/
 
-RUN apt-get update \
-    && apt-get install --yes --no-install-recommends \
-    python3-pyqt6.qtquick python3-pyqt6.qtwebengine python3-pyqt6.qtmultimedia \
-    python3.11-venv \
-    && rm -rf /var/lib/apt/lists/*
-
 # Use virtual environment.
-# /usr/bin/python3 3.11.2
-RUN /usr/bin/python3 -m venv --system-site-packages venv \
+# Python is here: /usr/local/bin/python v3.11.9
+RUN python -m venv --system-site-packages venv \
     && ./venv/bin/python -m pip install --no-cache-dir setuptools wheel \
     && ./venv/bin/python -m pip install --no-cache-dir /opt/anki/wheels/*.whl
 
@@ -49,6 +43,7 @@ ENV PATH=/opt/anki/venv/bin:$PATH
 # Install run-time dependencies.
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
+    # Installs Python here: /usr/bin/python3 v3.11.2
     python3-pyqt6.qtquick python3-pyqt6.qtwebengine python3-pyqt6.qtmultimedia \
     libasound2 \
     libdbus-1-3 \
@@ -73,8 +68,8 @@ RUN apt-get update \
     libxrandr2 \
     libxrender1 \
     libxtst6 \
-    && rm -rf /var/lib/apt/lists/*
-
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3 /usr/local/bin/python
 
 ARG USERNAME=anki
 ARG USER_UID=1000
